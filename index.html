@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Replay</title>
+  <meta name="theme-color" content="#15182B">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2315182B'/%3E%3Crect x='7' y='14' width='4' height='11' rx='1' fill='%23FFB547'/%3E%3Crect x='14' y='8' width='4' height='17' rx='1' fill='%23FFB547'/%3E%3Crect x='21' y='17' width='4' height='8' rx='1' fill='%23FFB547'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" fill="currentColor"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6.5" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="13.5" y="5" width="4" height="14" rx="1" fill="currentColor"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="M6 6.5v11a1 1 0 0 0 1.55.83L15 13.2V17a1 1 0 0 0 2 0V7a1 1 0 0 0-2 0v3.8L7.55 5.67A1 1 0 0 0 6 6.5z" fill="currentColor"/></symbol>
+    <symbol id="i-prev" viewBox="0 0 24 24"><path d="M18 6.5v11a1 1 0 0 1-1.55.83L9 13.2V17a1 1 0 0 1-2 0V7a1 1 0 0 1 2 0v3.8l7.45-5.13A1 1 0 0 1 18 6.5z" fill="currentColor"/></symbol>
+    <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M16 4h4v4M4 18l16-14M20 16v4h-4M15 15l5 5M4 6l5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M17 2l3 3-3 3M3 11V9a4 4 0 0 1 4-4h13M7 22l-3-3 3-3M21 13v2a4 4 0 0 1-4 4H4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-volume" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4z" fill="currentColor"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-sync" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.6-4.5M4 4v4h4M4 13a8 8 0 0 0 14.6 4.5M20 20v-4h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 16l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  </svg>
+
+  <div class="app" id="app">
+    <!-- 라이브러리 -->
+    <aside class="library" aria-label="내 라이브러리">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="brand-name">Replay</span>
+      </div>
+      <nav class="lib-list" id="libList" aria-label="플레이리스트 목록"></nav>
+      <div class="lib-foot" id="libFoot" hidden>
+        <button class="btn-ghost wide" id="openImport"><svg><use href="#i-plus"/></svg>유튜브에서 불러오기</button>
+        <button class="link-btn" id="signOut">로그아웃</button>
+      </div>
+    </aside>
+
+    <!-- 본문 -->
+    <main class="content" id="content" tabindex="-1"></main>
+
+    <!-- 지금 재생 중 -->
+    <aside class="now idle" id="now" aria-label="지금 재생 중">
+      <div class="screen"><div id="ytPlayer"></div></div>
+      <div class="now-meta">
+        <p class="now-title" id="nowTitle">재생할 곡을 골라주세요</p>
+        <p class="now-channel" id="nowChannel"></p>
+      </div>
+      <div class="meter">
+        <input type="range" id="seek" min="0" max="1000" value="0" step="1" aria-label="재생 위치">
+        <div class="times"><span id="tCur">0:00</span><span id="tDur">0:00</span></div>
+      </div>
+      <div class="transport">
+        <button class="icon-btn toggle" id="shuffleBtn" aria-pressed="false" title="셔플"><svg><use href="#i-shuffle"/></svg></button>
+        <button class="icon-btn" id="prevBtn" title="이전 곡"><svg><use href="#i-prev"/></svg></button>
+        <button class="play-btn" id="playBtn" title="재생"><svg><use href="#i-play"/></svg></button>
+        <button class="icon-btn" id="nextBtn" title="다음 곡"><svg><use href="#i-next"/></svg></button>
+        <button class="icon-btn toggle" id="repeatBtn" aria-pressed="false" title="반복 안 함"><svg><use href="#i-repeat"/></svg><span class="badge" id="repeatOne" hidden>1</span></button>
+      </div>
+      <label class="volume"><svg><use href="#i-volume"/></svg><input type="range" id="vol" min="0" max="100" value="80" aria-label="볼륨"></label>
+      <div class="upnext">
+        <h3>다음 곡</h3>
+        <ol id="upNext"></ol>
+      </div>
+    </aside>
+  </div>
+
+  <!-- 모바일 미니 플레이어 -->
+  <div class="mini" id="mini" hidden>
+    <img id="miniThumb" alt="">
+    <div class="mini-meta"><p id="miniTitle"></p><p id="miniChannel"></p></div>
+    <button class="icon-btn" id="miniPlay" title="재생"><svg><use href="#i-play"/></svg></button>
+    <button class="icon-btn" id="miniNext" title="다음 곡"><svg><use href="#i-next"/></svg></button>
+    <div class="mini-bar"><i id="miniProgress"></i></div>
+  </div>
+
+  <!-- 불러오기 창 -->
+  <dialog id="importDlg" aria-labelledby="importTitle">
+    <form method="dialog" class="dlg">
+      <header>
+        <h2 id="importTitle">유튜브에서 불러오기</h2>
+        <p class="sub">가져올 플레이리스트를 고르세요. 이미 불러온 것은 최신 상태로 다시 맞춰져요.</p>
+      </header>
+      <div class="dlg-body" id="importBody"></div>
+      <footer>
+        <span class="dlg-status" id="importStatus" role="status"></span>
+        <button value="cancel" class="btn-ghost">닫기</button>
+        <button type="button" class="btn-primary" id="importGo" disabled>불러오기</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
