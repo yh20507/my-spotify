@@ -1,0 +1,47 @@
+name: 윈도우 앱 빌드
+
+on:
+  push:
+    tags: ['desktop-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: exe 만들기
+        run: npx electron-builder --win --publish never
+
+      - name: 빌드 결과 보관
+        uses: actions/upload-artifact@v4
+        with:
+          name: Replay-windows
+          path: desktop/dist/*.exe
+
+      - name: Releases에 올리기
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Replay 윈도우 앱 ${{ github.ref_name }}
+          body: |
+            - **Replay-Setup**: 설치용. 실행하면 바로 설치되고 시작 메뉴에 Replay가 생겨요.
+            - **Replay-Portable**: 설치 없이 바로 실행.
+            처음 실행할 때 "Windows의 PC 보호" 창이 뜨면 **추가 정보 → 실행**을 누르세요. (서명하지 않은 개인 앱이라 뜨는 안내예요.)
+          files: desktop/dist/*.exe

@@ -1,0 +1,40 @@
+{
+  "name": "replay-desktop",
+  "productName": "Replay",
+  "version": "1.0.0",
+  "description": "유튜브 플레이리스트 전용 플레이어 Replay의 윈도우 앱",
+  "author": "yh20507",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --publish never"
+  },
+  "devDependencies": {
+    "electron": "45.0.0",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "io.github.yh20507.replay",
+    "productName": "Replay",
+    "files": ["main.js", "preload.js", "offline.html", "icon.png"],
+    "directories": { "output": "dist" },
+    "win": {
+      "icon": "icon.png",
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "shortcutName": "Replay",
+      "artifactName": "Replay-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "Replay-Portable-${version}.${ext}"
+    }
+  }
+}

@@ -87,7 +87,22 @@ function clearYtToken() { try { localStorage.removeItem('replay.yt'); } catch {}
 
 class NeedYouTube extends Error {}
 
+// 윈도우 앱(Replay 데스크톱) 안에서 실행 중이면 이 값이 있어요.
+const desktop = window.replayDesktop || null;
+
 async function connectGoogle() {
+  if (desktop) {
+    // 구글은 앱 안 창에서의 로그인을 막아서, 평소 쓰는 브라우저에서 로그인하고 결과만 앱으로 받아와요.
+    const redirectTo = await desktop.startAuth();
+    const { data, error } = await sb.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo, scopes: YT_SCOPE, skipBrowserRedirect: true },
+    });
+    if (error) return toast('로그인을 시작하지 못했어요: ' + error.message, 5000);
+    await desktop.openExternal(data.url);
+    toast('브라우저에서 로그인을 마치면 자동으로 돌아와요', 6000);
+    return;
+  }
   const { error } = await sb.auth.signInWithOAuth({
     provider: 'google',
     options: {
@@ -982,3 +997,37 @@ async function onUser(user) {
   const err = q.get('error_description');
   if (err) toast('로그인 실패: ' + err.replace(/\+/g, ' '), 7000);
 })();
+
+/* ─────────────────── 윈도우 앱 연동 ─────────────────── */
+if (desktop) {
+  document.body.classList.add('desktop');
+
+  // 브라우저에서 로그인을 마치면 앱이 받은 코드를 여기로 넘겨줘요.
+  desktop.onAuthCode((code) => {
+    location.replace(location.pathname + '?code=' + encodeURIComponent(code));
+  });
+  desktop.onAuthError((msg) => toast('로그인 실패: ' + msg, 7000));
+
+  // 키보드의 미디어 키
+  desktop.onMediaKey((key) => {
+    if (key === 'playpause') togglePlay();
+    else if (key === 'next') next(false);
+    else if (key === 'prev') prev();
+  });
+
+  // 미니 플레이어 전환
+  const toggle = $('#miniToggle');
+  toggle.hidden = false;
+  let mini = false;
+  const setMini = async (on) => {
+    mini = on;
+    document.body.classList.toggle('mini-mode', on);
+    toggle.querySelector('use').setAttribute('href', on ? '#i-expand' : '#i-mini');
+    toggle.title = on ? '크게 보기' : '미니 플레이어로 전환';
+    await desktop.setMini(on);
+  };
+  toggle.onclick = () => setMini(!mini);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && mini && !document.querySelector('dialog[open]')) setMini(false);
+  });
+}

@@ -182,7 +182,9 @@ img { display: block; }
 .now.idle .screen::after { content: "재생을 시작하면 여기에 영상이 나와요"; color: var(--mist); font-size: 13px; }
 .now.idle #ytPlayer { display: none; }
 
-.now-meta { min-height: 52px; }
+.now-meta { min-height: 52px; display: flex; align-items: flex-start; gap: 8px; }
+.now-text { flex: 1; min-width: 0; }
+#miniToggle { margin: -4px -8px 0 0; }
 .now-title { margin: 0; font-weight: 700; font-size: 17px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .now-channel { margin: 2px 0 0; color: var(--mist); font-size: 13.5px; }
 
@@ -364,3 +366,28 @@ dialog::backdrop { background: rgba(8, 9, 20, .7); }
   .eq i, .welcome .bars i { animation: none; transform: scaleY(.7); }
   .toast { transition: none; }
 }
+
+/* ── 윈도우 앱: 미니 플레이어 모드 ───────── */
+body.mini-mode { overflow: hidden; }
+body.mini-mode .app { display: block; height: 100vh; min-height: 0; }
+body.mini-mode .library,
+body.mini-mode .content,
+body.mini-mode .mini,
+body.mini-mode .upnext,
+body.mini-mode .volume { display: none !important; }
+body.mini-mode .now {
+  display: flex !important; height: 100vh; overflow: hidden;
+  border: 0; padding: 10px 12px 8px; gap: 6px;
+}
+body.mini-mode .screen { min-height: 200px; flex: none; }
+body.mini-mode .now-meta { min-height: 0; align-items: center; }
+body.mini-mode .now-title { font-size: 14.5px; -webkit-line-clamp: 1; }
+body.mini-mode .now-channel { font-size: 12.5px; margin: 0; }
+body.mini-mode #miniToggle { margin: 0 -6px 0 0; }
+body.mini-mode .meter input[type="range"] { height: 14px; }
+body.mini-mode .times { margin-top: 0; font-size: 11px; }
+body.mini-mode .transport { padding: 0; margin-top: -4px; }
+body.mini-mode .play-btn { width: 46px; height: 46px; box-shadow: 0 0 0 4px rgba(255, 181, 71, .12); }
+body.mini-mode .play-btn svg { width: 22px; height: 22px; }
+body.mini-mode .icon-btn { width: 36px; height: 36px; }
+body.mini-mode .toast { bottom: 12px; font-size: 13px; }
