@@ -21,6 +21,8 @@
     <symbol id="i-sync" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.6-4.5M4 4v4h4M4 13a8 8 0 0 0 14.6 4.5M20 20v-4h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 16l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
   </svg>
 
@@ -33,7 +35,8 @@
       </div>
       <nav class="lib-list" id="libList" aria-label="플레이리스트 목록"></nav>
       <div class="lib-foot" id="libFoot" hidden>
-        <button class="btn-ghost wide" id="openImport"><svg><use href="#i-plus"/></svg>유튜브에서 불러오기</button>
+        <button class="btn-ghost wide" id="openNew"><svg><use href="#i-plus"/></svg>새 플레이리스트</button>
+        <button class="btn-ghost wide" id="openImport"><svg><use href="#i-sync"/></svg>유튜브에서 불러오기</button>
         <button class="link-btn" id="signOut">로그아웃</button>
       </div>
     </aside>
@@ -88,6 +91,46 @@
         <span class="dlg-status" id="importStatus" role="status"></span>
         <button value="cancel" class="btn-ghost">닫기</button>
         <button type="button" class="btn-primary" id="importGo" disabled>불러오기</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- 곡 추가 창 -->
+  <dialog id="addDlg" aria-labelledby="addTitle">
+    <div class="dlg">
+      <header>
+        <h2 id="addTitle">곡 추가</h2>
+        <p class="sub" id="addSub"></p>
+        <form class="search big" id="addForm">
+          <svg><use href="#i-search"/></svg>
+          <input id="addQuery" type="search" placeholder="노래 제목, 가수 또는 유튜브 링크" autocomplete="off" enterkeyhint="search">
+          <button class="btn-primary small" type="submit">찾기</button>
+        </form>
+      </header>
+      <div class="dlg-body" id="addBody">
+        <p class="hint">찾고 싶은 노래를 검색하거나 유튜브 링크를 붙여넣으세요. 검색은 내 유튜브 계정과 연결되지 않아서 추천 목록에 영향을 주지 않아요.</p>
+      </div>
+      <footer>
+        <span class="dlg-status" id="addStatus" role="status"></span>
+        <button type="button" class="btn-ghost" id="addClose">완료</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- 새 플레이리스트 창 -->
+  <dialog id="newDlg" aria-labelledby="newTitle">
+    <form class="dlg" id="newForm">
+      <header>
+        <h2 id="newTitle">새 플레이리스트</h2>
+        <p class="sub">이 앱 안에만 저장돼요. 유튜브에는 만들어지지 않아요.</p>
+      </header>
+      <div class="dlg-body small">
+        <input class="text-input" id="newName" maxlength="80" placeholder="예: 비 오는 날 90년대 발라드" required>
+      </div>
+      <footer>
+        <span class="dlg-status"></span>
+        <button type="button" class="btn-ghost" id="newCancel">취소</button>
+        <button type="submit" class="btn-primary">만들기</button>
       </footer>
     </form>
   </dialog>

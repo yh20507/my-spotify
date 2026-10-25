@@ -184,13 +184,24 @@ async function importOne(ytPl, onProgress) {
   const items = await fetchYtItems(ytPl.id, onProgress);
   const thumb = ytPl.thumb || items[0]?.thumbnail || null;
 
+  // 이 앱에서 직접 추가한 곡은 유튜브와 다시 맞춰도 남겨둬요.
+  const existing = state.playlists.find((p) => p.youtube_id === ytPl.id);
+  let manual = [];
+  if (existing) {
+    const { data, error: e } = await sb.from('tracks').select('video_id,title,channel,thumbnail')
+      .eq('playlist_id', existing.id).eq('manual', true).order('position');
+    if (e) throw e;
+    manual = data;
+  }
+
   const { data: pl, error } = await sb.from('playlists')
     .upsert({
       user_id: state.user.id,
       youtube_id: ytPl.id,
+      kind: 'youtube',
       title: ytPl.title,
       thumbnail: thumb,
-      track_count: items.length,
+      track_count: items.length + manual.length,
       synced_at: new Date().toISOString(),
     }, { onConflict: 'user_id,youtube_id' })
     .select()
@@ -200,7 +211,10 @@ async function importOne(ytPl, onProgress) {
   const del = await sb.from('tracks').delete().eq('playlist_id', pl.id);
   if (del.error) throw del.error;
 
-  const rows = items.map((t, i) => ({ ...t, playlist_id: pl.id, user_id: state.user.id, position: i }));
+  const rows = [
+    ...items.map((t) => ({ ...t, manual: false })),
+    ...manual.map((t) => ({ ...t, manual: true })),
+  ].map((t, i) => ({ ...t, playlist_id: pl.id, user_id: state.user.id, position: i }));
   for (let i = 0; i < rows.length; i += 500) {
     const { error: e } = await sb.from('tracks').insert(rows.slice(i, i + 500));
     if (e) throw e;
@@ -211,8 +225,10 @@ async function importOne(ytPl, onProgress) {
 async function loadPlaylists() {
   const { data, error } = await sb.from('playlists').select('*').order('created_at', { ascending: true });
   if (error) { toast('라이브러리를 불러오지 못했어요: ' + error.message, 5000); return; }
-  // 좋아요 목록은 맨 위로
-  state.playlists = data.sort((a, b) => (a.youtube_id === LIKED ? -1 : b.youtube_id === LIKED ? 1 : 0));
+  // 좋아요 목록 → 앱에서 만든 목록 → 유튜브에서 불러온 목록 순서
+  const rank = (p) => (p.youtube_id === LIKED ? 0 : p.kind === 'local' ? 1 : 2);
+  state.playlists = data.sort((a, b) => rank(a) - rank(b));
+  if (state.current) state.current = state.playlists.find((p) => p.id === state.current.id) || null;
 }
 
 async function loadTracks(playlistId) {
@@ -267,11 +283,15 @@ function renderWelcome() {
 function renderEmptyLibrary() {
   content.innerHTML = `
     <section class="welcome">
-      <h1>첫 플레이리스트를<br>불러와 볼까요?</h1>
-      <p>유튜브에서 만든 플레이리스트를 골라 가져오면, 다음부터는 유튜브에 들어가지 않고 여기서 바로 재생할 수 있어요.</p>
-      <div><button class="btn-primary" id="firstImport">유튜브에서 불러오기</button></div>
+      <h1>첫 플레이리스트를<br>만들어 볼까요?</h1>
+      <p>유튜브에서 만든 플레이리스트를 가져오거나, 여기서 새 플레이리스트를 만들어 노래를 검색해 담을 수 있어요.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-primary" id="firstImport">유튜브에서 불러오기</button>
+        <button class="btn-ghost" id="firstNew">새 플레이리스트</button>
+      </div>
     </section>`;
   $('#firstImport').onclick = openImport;
+  $('#firstNew').onclick = openNew;
 }
 
 function visibleTracks() {
@@ -287,22 +307,24 @@ function renderPlaylist() {
       ${p.thumbnail ? `<img class="pl-cover" src="${esc(p.thumbnail)}" alt="">` : '<div class="pl-cover"></div>'}
       <div class="pl-info">
         <h1>${esc(p.title)}</h1>
-        <p class="meta">곡 ${state.tracks.length}개, ${ago(p.synced_at)} 동기화</p>
+        <p class="meta">곡 ${state.tracks.length}개, ${p.kind === 'local' ? '이 앱에서 만든 플레이리스트' : `${ago(p.synced_at)} 유튜브와 맞춤`}</p>
       </div>
     </header>
     <div class="pl-actions">
       <button class="btn-primary" id="playAll"><svg><use href="#i-play"/></svg>재생</button>
       <button class="btn-ghost" id="shuffleAll"><svg><use href="#i-shuffle"/></svg>셔플 재생</button>
+      <button class="btn-ghost" id="addSongs"><svg><use href="#i-plus"/></svg>곡 추가</button>
       <span class="spacer"></span>
       <label class="search"><svg><use href="#i-search"/></svg><input id="filter" type="search" placeholder="이 목록에서 찾기" value="${esc(state.filter)}"></label>
-      <button class="icon-btn" id="resync" title="유튜브와 다시 맞추기"><svg><use href="#i-sync"/></svg></button>
-      <button class="icon-btn danger" id="removePl" title="라이브러리에서 빼기"><svg><use href="#i-trash"/></svg></button>
+      ${p.kind === 'local' ? '' : '<button class="icon-btn" id="resync" title="유튜브와 다시 맞추기"><svg><use href="#i-sync"/></svg></button>'}
+      <button class="icon-btn danger" id="removePl" title="${p.kind === 'local' ? '플레이리스트 삭제' : '라이브러리에서 빼기'}"><svg><use href="#i-trash"/></svg></button>
     </div>
     <ol class="tracks" id="trackList"></ol>`;
 
   $('#playAll').onclick = () => startPlayback(0, false);
   $('#shuffleAll').onclick = () => startPlayback(null, true);
-  $('#resync').onclick = () => resyncCurrent();
+  $('#addSongs').onclick = openAdd;
+  if ($('#resync')) $('#resync').onclick = () => resyncCurrent();
   $('#removePl').onclick = () => removeCurrent();
   $('#filter').oninput = (e) => { state.filter = e.target.value; renderTracks(); };
   renderTracks();
@@ -313,7 +335,7 @@ function renderTracks() {
   if (!list) return;
   const rows = visibleTracks();
   if (!state.tracks.length) {
-    list.innerHTML = '<li class="empty">이 플레이리스트는 비어 있어요. 유튜브에서 곡을 추가한 뒤 다시 맞추기를 눌러주세요.</li>';
+    list.innerHTML = '<li class="empty">아직 곡이 없어요. 곡 추가를 눌러 노래를 검색해 담아보세요.</li>';
     return;
   }
   if (!rows.length) {
@@ -321,18 +343,50 @@ function renderTracks() {
     return;
   }
   const cur = state.nowTrack?.id;
+  const local = state.current?.kind === 'local';
+  const order = new Map(state.tracks.map((t, i) => [t.id, i]));
   list.innerHTML = rows.map((t, i) => `
     <li class="track${t.id === cur ? ' current' : ''}${t._broken ? ' broken' : ''}" data-i="${i}">
-      <span class="num">${t.id === cur ? `<span class="eq${state.playing ? '' : ' paused'}"><i></i><i></i><i></i></span>` : t.position + 1}</span>
+      <span class="num">${t.id === cur ? `<span class="eq${state.playing ? '' : ' paused'}"><i></i><i></i><i></i></span>` : order.get(t.id) + 1}</span>
       ${t.thumbnail ? `<img src="${esc(t.thumbnail)}" alt="" loading="lazy">` : '<img alt="">'}
       <div style="min-width:0"><div class="t-title">${esc(t.title)}</div><div class="t-channel">${esc(t.channel)}</div></div>
+      ${local || t.manual ? `<button class="icon-btn rm" data-rm="${t.id}" title="이 플레이리스트에서 빼기"><svg><use href="#i-x"/></svg></button>` : '<span></span>'}
     </li>`).join('');
 }
 
 $('#content').addEventListener('click', (e) => {
+  const rm = e.target.closest('[data-rm]');
+  if (rm) { removeTrack(rm.dataset.rm); return; }
   const row = e.target.closest('.track');
   if (row) startPlayback(Number(row.dataset.i), state.shuffle);
 });
+
+async function removeTrack(id) {
+  const t = state.tracks.find((x) => x.id === id);
+  if (!t) return;
+  const { error } = await sb.from('tracks').delete().eq('id', id);
+  if (error) return toast('빼지 못했어요: ' + error.message, 5000);
+  state.tracks = state.tracks.filter((x) => x.id !== id);
+  state.base = state.base.filter((x) => x.id !== id);
+  const qi = state.queue.findIndex((x) => x.id === id);
+  if (qi > state.qi) state.queue.splice(qi, 1);
+  await bumpCount();
+  renderPlaylist();
+  renderUpNext();
+  toast(`'${t.title}'을(를) 뺐어요`);
+}
+
+// 곡 수와 표지(첫 곡 썸네일)를 DB에 맞춰 둬요.
+async function bumpCount() {
+  const p = state.current;
+  if (!p) return;
+  const patch = { track_count: state.tracks.length };
+  if (p.kind === 'local') patch.thumbnail = state.tracks[0]?.thumbnail || null;
+  else if (!p.thumbnail && state.tracks[0]) patch.thumbnail = state.tracks[0].thumbnail;
+  await sb.from('playlists').update(patch).eq('id', p.id);
+  Object.assign(p, patch);
+  renderLibrary();
+}
 
 async function openPlaylist(id) {
   const p = state.playlists.find((x) => x.id === id);
@@ -368,13 +422,16 @@ async function resyncCurrent() {
 
 async function removeCurrent() {
   const p = state.current;
-  if (!confirm(`'${p.title}'을(를) 라이브러리에서 뺄까요? 유튜브의 원본 플레이리스트는 그대로 남아요.`)) return;
+  const msg = p.kind === 'local'
+    ? `'${p.title}' 플레이리스트를 삭제할까요? 담아둔 곡 목록도 함께 지워지고 되돌릴 수 없어요.`
+    : `'${p.title}'을(를) 라이브러리에서 뺄까요? 유튜브의 원본 플레이리스트는 그대로 남아요.`;
+  if (!confirm(msg)) return;
   const { error } = await sb.from('playlists').delete().eq('id', p.id);
   if (error) return toast('빼지 못했어요: ' + error.message, 5000);
   state.current = null;
   await loadPlaylists();
   renderLibrary();
-  toast('라이브러리에서 뺐어요');
+  toast(p.kind === 'local' ? '플레이리스트를 삭제했어요' : '라이브러리에서 뺐어요');
   showHome();
 }
 
@@ -459,6 +516,168 @@ $('#importGo').onclick = async () => {
   }
 };
 
+/* ─────────────────── 새 플레이리스트 ─────────────────── */
+const newDlg = $('#newDlg');
+function openNew() {
+  $('#newName').value = '';
+  newDlg.showModal();
+  $('#newName').focus();
+}
+$('#openNew').onclick = openNew;
+$('#newCancel').onclick = () => newDlg.close();
+$('#newForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const title = $('#newName').value.trim();
+  if (!title) return;
+  const { data, error } = await sb.from('playlists')
+    .insert({ user_id: state.user.id, kind: 'local', youtube_id: null, title, track_count: 0 })
+    .select().single();
+  if (error) return toast('만들지 못했어요: ' + error.message, 5000);
+  newDlg.close();
+  await loadPlaylists();
+  renderLibrary();
+  await openPlaylist(data.id);
+  openAdd();
+});
+
+/* ─────────────────── 곡 추가 (검색 / 링크) ─────────────────── */
+const addDlg = $('#addDlg');
+let addResults = [];
+let addNextPage = null;
+let addLastQuery = '';
+
+function openAdd() {
+  if (!state.current) return;
+  $('#addSub').textContent = `'${state.current.title}'에 담아요`;
+  $('#addStatus').textContent = '';
+  addDlg.showModal();
+  $('#addQuery').focus();
+  $('#addQuery').select();
+}
+$('#addClose').onclick = () => addDlg.close();
+
+// 유튜브 링크에서 영상 ID 꺼내기
+function videoIdFrom(text) {
+  const s = text.trim();
+  const m = s.match(/(?:youtu\.be\/|[?&]v=|\/shorts\/|\/embed\/|\/live\/)([A-Za-z0-9_-]{11})/);
+  if (m) return m[1];
+  return null;
+}
+
+async function searchYt(body) {
+  const { data, error } = await sb.functions.invoke('yt-search', { body });
+  if (error) {
+    let reason = '';
+    try { reason = (await error.context.json()).error; } catch {}
+    const messages = {
+      NO_KEY: '검색용 API 키가 아직 설정되지 않았어요. Supabase 비밀값에 YOUTUBE_API_KEY를 넣어주세요.',
+      quotaExceeded: '오늘 검색 횟수를 다 썼어요(하루 약 100번). 오후 4~5시쯤 초기화돼요. 링크 붙여넣기는 계속 돼요.',
+      keyInvalid: 'API 키가 올바르지 않아요. 키를 다시 복사해서 넣어주세요.',
+      forbidden: 'API 키에 YouTube Data API v3 사용 권한이 없어요.',
+      accessNotConfigured: 'Google Cloud에서 YouTube Data API v3가 꺼져 있어요.',
+      LOGIN_REQUIRED: '로그인이 풀렸어요. 새로고침 후 다시 로그인해주세요.',
+    };
+    throw new Error(messages[reason] || `검색하지 못했어요 (${reason || error.message})`);
+  }
+  return data;
+}
+
+function renderAddResults(append = false) {
+  const body = $('#addBody');
+  if (!addResults.length) {
+    body.innerHTML = '<p class="hint">찾는 결과가 없어요. 가수 이름과 노래 제목을 같이 써보세요.</p>';
+    return;
+  }
+  const have = new Set(state.tracks.map((t) => t.video_id));
+  body.innerHTML = addResults.map((r, i) => `
+    <div class="result">
+      ${r.thumbnail ? `<img src="${esc(r.thumbnail)}" alt="" loading="lazy">` : '<img alt="">'}
+      <div style="min-width:0"><div class="r-title">${esc(r.title)}</div><div class="r-channel">${esc(r.channel)}</div></div>
+      ${have.has(r.video_id)
+        ? '<span class="add-btn done"><svg><use href="#i-check"/></svg>담김</span>'
+        : `<button class="add-btn" data-add="${i}"><svg><use href="#i-plus"/></svg>담기</button>`}
+    </div>`).join('') +
+    (addNextPage ? '<button class="btn-ghost more-btn" id="addMore">결과 더 보기</button>' : '');
+  if (!append) body.scrollTop = 0;
+}
+
+$('#addForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const text = $('#addQuery').value.trim();
+  if (!text) return;
+  const body = $('#addBody');
+  const vid = videoIdFrom(text);
+  body.innerHTML = `<p class="hint">${vid ? '링크의 영상을 확인하는 중…' : '유튜브에서 찾는 중…'}</p>`;
+  try {
+    const r = await searchYt(vid ? { id: vid } : { q: text });
+    addResults = r.items || [];
+    addNextPage = vid ? null : r.nextPageToken;
+    addLastQuery = text;
+    if (vid && addResults[0] && !addResults[0].embeddable) {
+      body.innerHTML = '<p class="hint">이 영상은 외부 재생이 막혀 있어서 앱에서 틀 수 없어요. 같은 노래의 다른 영상(예: 가수 이름 - Topic 채널)을 검색해보세요.</p>';
+      return;
+    }
+    renderAddResults();
+  } catch (err) {
+    body.innerHTML = `<p class="hint">${esc(err.message)}</p>`;
+  }
+});
+
+$('#addBody').addEventListener('click', async (e) => {
+  if (e.target.closest('#addMore')) {
+    const btn = e.target.closest('#addMore');
+    btn.disabled = true;
+    btn.textContent = '불러오는 중…';
+    try {
+      const r = await searchYt({ q: addLastQuery, pageToken: addNextPage });
+      const seen = new Set(addResults.map((x) => x.video_id));
+      addResults.push(...(r.items || []).filter((x) => !seen.has(x.video_id)));
+      addNextPage = r.nextPageToken;
+      renderAddResults(true);
+    } catch (err) {
+      toast(err.message, 5000);
+      btn.remove();
+    }
+    return;
+  }
+  const btn = e.target.closest('[data-add]');
+  if (!btn) return;
+  btn.disabled = true;
+  await addTrack(addResults[Number(btn.dataset.add)], btn);
+});
+
+async function addTrack(item, btn) {
+  const p = state.current;
+  if (!p || !item) return;
+  if (state.tracks.some((t) => t.video_id === item.video_id)) return;
+  const position = state.tracks.reduce((m, t) => Math.max(m, t.position), -1) + 1;
+  const { data, error } = await sb.from('tracks').insert({
+    playlist_id: p.id,
+    user_id: state.user.id,
+    video_id: item.video_id,
+    title: item.title,
+    channel: item.channel,
+    thumbnail: item.thumbnail,
+    position,
+    manual: true,
+  }).select().single();
+  if (error) {
+    if (btn) btn.disabled = false;
+    return toast('담지 못했어요: ' + error.message, 5000);
+  }
+  state.tracks.push(data);
+  // 재생 중인 목록이 이 플레이리스트라면 다음 곡 목록 끝에도 붙여요.
+  if (state.base.length && state.base.some((t) => t.playlist_id === p.id)) {
+    state.base.push(data);
+    state.queue.push(data);
+    renderUpNext();
+  }
+  if (btn) btn.outerHTML = '<span class="add-btn done"><svg><use href="#i-check"/></svg>담김</span>';
+  $('#addStatus').textContent = `'${item.title}' 담음`;
+  await bumpCount();
+  renderPlaylist();
+}
+
 /* ─────────────────── 재생 ─────────────────── */
 function shuffled(arr) {
   const a = arr.slice();
@@ -479,7 +698,7 @@ function startPlayback(index, shuffle) {
     state.queue = [start, ...shuffled(rows.filter((t) => t !== start))];
     state.qi = 0;
   } else {
-    state.queue = rows;
+    state.queue = rows.slice();
     state.qi = Math.max(0, first ? rows.indexOf(first) : 0);
   }
   state.errorStreak = 0;
@@ -549,7 +768,7 @@ function setShuffle(on, reorder = true) {
     state.queue = [cur, ...shuffled(state.base.filter((t) => t !== cur))];
     state.qi = 0;
   } else {
-    state.queue = state.base;
+    state.queue = state.base.slice();
     state.qi = Math.max(0, state.base.indexOf(cur));
   }
   renderUpNext();
@@ -601,6 +820,8 @@ window.onYouTubeIframeAPIReady = () => {
 
 function createPlayer(videoId) {
   state.player = new YT.Player('ytPlayer', {
+    // 개인정보 보호 모드: 여기서 들은 곡이 유튜브 추천에 반영되지 않게 해요.
+    host: 'https://www.youtube-nocookie.com',
     width: '100%', height: '100%', videoId,
     playerVars: { autoplay: 1, playsinline: 1, rel: 0, origin: location.origin },
     events: {

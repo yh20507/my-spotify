@@ -38,4 +38,10 @@ create policy "own playlists delete" on public.playlists for delete to authentic
 create policy "own tracks select" on public.tracks for select to authenticated using ((select auth.uid()) = user_id);
 create policy "own tracks insert" on public.tracks for insert to authenticated with check ((select auth.uid()) = user_id);
 create policy "own tracks update" on public.tracks for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+-- 앱에서 만든 플레이리스트(local)와 앱에서 직접 담은 곡(manual)
+alter table public.playlists
+  add column kind text not null default 'youtube' check (kind in ('youtube', 'local'));
+alter table public.playlists alter column youtube_id drop not null;
+alter table public.tracks add column manual boolean not null default false;
+
 create policy "own tracks delete" on public.tracks for delete to authenticated using ((select auth.uid()) = user_id);
