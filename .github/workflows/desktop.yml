@@ -2,7 +2,10 @@ name: 윈도우 앱 빌드
 
 on:
   push:
-    tags: ['desktop-v*']
+    branches: [main]
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/desktop.yml'
   workflow_dispatch:
 
 permissions:
@@ -29,6 +32,11 @@ jobs:
       - name: exe 만들기
         run: npx electron-builder --win --publish never
 
+      - name: 버전 읽기
+        id: ver
+        shell: bash
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
       - name: 빌드 결과 보관
         uses: actions/upload-artifact@v4
         with:
@@ -36,10 +44,12 @@ jobs:
           path: desktop/dist/*.exe
 
       - name: Releases에 올리기
-        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          name: Replay 윈도우 앱 ${{ github.ref_name }}
+          tag_name: desktop-v${{ steps.ver.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: Replay 윈도우 앱 v${{ steps.ver.outputs.version }}
+          make_latest: true
           body: |
             - **Replay-Setup**: 설치용. 실행하면 바로 설치되고 시작 메뉴에 Replay가 생겨요.
             - **Replay-Portable**: 설치 없이 바로 실행.
