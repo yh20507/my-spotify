@@ -9,4 +9,6 @@ contextBridge.exposeInMainWorld('replayDesktop', {
   onAuthCode: (cb) => ipcRenderer.on('auth-code', (_e, code) => cb(code)),
   onAuthError: (cb) => ipcRenderer.on('auth-error', (_e, msg) => cb(msg)),
   onMediaKey: (cb) => ipcRenderer.on('media-key', (_e, key) => cb(key)),
+  ytStatus: () => ipcRenderer.invoke('yt-status'),
+  ytLogin: () => ipcRenderer.invoke('yt-login'),
 });

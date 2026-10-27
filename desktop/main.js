@@ -1,6 +1,6 @@
 // Replay 윈도우 앱
 // 웹앱(https://yh20507.github.io/my-spotify/)을 창에 띄우고, 미니 플레이어·미디어 키·로그인 연결을 맡아요.
-const { app, BrowserWindow, ipcMain, shell, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, globalShortcut, session } = require('electron');
 const http = require('http');
 const path = require('path');
 
@@ -111,6 +111,48 @@ ipcMain.handle('open-external', (_e, url) => {
       (u.hostname.endsWith('.supabase.co') || u.hostname === 'accounts.google.com');
     if (ok) shell.openExternal(url);
   } catch { /* 잘못된 주소는 무시 */ }
+});
+
+/* ── 유튜브 프리미엄: 앱 창 안에서 유튜브에 로그인해 두면 플레이어가 광고 없이 재생돼요 ── */
+async function ytSignedIn() {
+  const cookies = await session.defaultSession.cookies.get({ domain: 'youtube.com' });
+  return cookies.some((c) => ['LOGIN_INFO', 'SAPISID', '__Secure-3PSID'].includes(c.name));
+}
+ipcMain.handle('yt-status', () => ytSignedIn());
+
+let loginWin = null;
+let loginDone = null;
+ipcMain.handle('yt-login', () => {
+  if (loginDone) { loginWin?.focus(); return loginDone; }
+  loginDone = new Promise((resolve) => {
+    loginWin = new BrowserWindow({
+      width: 500,
+      height: 720,
+      parent: win || undefined,
+      title: '유튜브 로그인',
+      autoHideMenuBar: true,
+      backgroundColor: '#ffffff',
+      webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+    });
+    loginWin.loadURL('https://accounts.google.com/ServiceLogin?service=youtube&continue=' +
+      encodeURIComponent('https://www.youtube.com/'));
+    // 로그인 창의 새 창 열기는 막고, 구글/유튜브가 아닌 링크는 평소 브라우저로 열어요.
+    loginWin.webContents.setWindowOpenHandler(({ url }) => {
+      if (/^https:\/\/([a-z0-9-]+\.)*(google|youtube)\.com\//.test(url)) loginWin.loadURL(url);
+      else if (/^https?:\/\//.test(url)) shell.openExternal(url);
+      return { action: 'deny' };
+    });
+    // 로그인을 마치고 유튜브로 넘어가면 창을 닫아요.
+    loginWin.webContents.on('did-navigate', async (_e, url) => {
+      if (/^https:\/\/(www|m)\.youtube\.com\//.test(url) && await ytSignedIn()) loginWin?.close();
+    });
+    loginWin.on('closed', async () => {
+      loginWin = null;
+      loginDone = null;
+      resolve(await ytSignedIn());
+    });
+  });
+  return loginDone;
 });
 
 /* ── 미니 플레이어 ── */

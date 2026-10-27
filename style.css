@@ -391,3 +391,4 @@ body.mini-mode .play-btn { width: 46px; height: 46px; box-shadow: 0 0 0 4px rgba
 body.mini-mode .play-btn svg { width: 22px; height: 22px; }
 body.mini-mode .icon-btn { width: 36px; height: 36px; }
 body.mini-mode .toast { bottom: 12px; font-size: 13px; }
+.btn-primary.wide { width: 100%; }

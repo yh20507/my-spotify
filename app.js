@@ -833,12 +833,12 @@ window.onYouTubeIframeAPIReady = () => {
   document.head.appendChild(s);
 })();
 
-function createPlayer(videoId) {
+// 일반 유튜브 플레이어: 유튜브에 로그인돼 있으면 프리미엄이 적용돼 광고 없이 재생돼요.
+// (대신 여기서 들은 곡은 유튜브 시청 기록에 남아요.)
+function createPlayer(videoId, start = 0) {
   state.player = new YT.Player('ytPlayer', {
-    // 개인정보 보호 모드: 여기서 들은 곡이 유튜브 추천에 반영되지 않게 해요.
-    host: 'https://www.youtube-nocookie.com',
     width: '100%', height: '100%', videoId,
-    playerVars: { autoplay: 1, playsinline: 1, rel: 0, origin: location.origin },
+    playerVars: { autoplay: 1, playsinline: 1, rel: 0, origin: location.origin, start: Math.floor(start) },
     events: {
       onReady: (e) => { e.target.setVolume(state.volume); e.target.playVideo(); },
       onStateChange: onPlayerState,
@@ -1030,4 +1030,35 @@ if (desktop) {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && mini && !document.querySelector('dialog[open]')) setMini(false);
   });
+
+  // 유튜브 프리미엄 연결: 앱 창 안에서 유튜브에 로그인해야 광고 없이 재생돼요. (앱 1.1.0부터)
+  if (desktop.ytLogin) {
+    const btn = $('#ytPremium');
+    const refresh = async () => {
+      const ok = await desktop.ytStatus();
+      btn.hidden = ok;
+      return ok;
+    };
+    refresh();
+    btn.onclick = async () => {
+      const ok = await desktop.ytLogin();
+      if (!ok) return toast('유튜브에 로그인하지 않았어요. 로그인 창이 막히면 크롬에서 웹 버전을 써주세요.', 6000);
+      await refresh();
+      resetPlayer();
+      toast('유튜브 프리미엄이 연결됐어요. 이제 광고 없이 재생돼요', 4000);
+    };
+  }
+}
+
+// 로그인 상태가 바뀌면 플레이어를 새로 만들어야 적용돼요. 듣던 곡은 그 자리부터 이어서 틀어요.
+function resetPlayer() {
+  if (!state.player) return;
+  const at = state.player.getCurrentTime?.() || 0;
+  const wasPlaying = state.playing;
+  try { state.player.destroy(); } catch {}
+  state.player = null;
+  state.playing = false;
+  document.querySelector('.screen').innerHTML = '<div id="ytPlayer"></div>';
+  if (state.nowTrack && wasPlaying) createPlayer(state.nowTrack.video_id, at);
+  syncPlayIcons();
 }
